@@ -1,0 +1,276 @@
+---
+title: "Linear Algebra Primer"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+```
+
+##### Matrices / Vectors
+
+A matrix is an $n \times p$ object. Matrices are often denoted by a capital letter (or Greek symbol). A few common matrices will be
+
+\vfill
+
+\vfill
+
+\vfill
+
+\vfill
+
+Vectors are essentially one-dimension vectors and will be denoted with an underline. We will assume vectors are $q \times 1$ dimension unless noted with a transpose.
+
+\vfill
+\vfill
+
+\vfill
+\vfill
+
+The transpose operator will be denoted by $\underline{y}^T = \begin{pmatrix} y_1 & y_2 & \cdots & y_n \end{pmatrix}$ or $\underline{y}^{'}$, both of which would result in a $1 \times n$ vector.
+
+\newpage
+
+##### Matrix Multiplication
+
+The most important component in matrix multiplication is tracking dimensions.
+
+\vfill
+
+Consider a simple case with 
+
+$$\hat{\underline{y}} = X \times \hat{\underline{\beta}},$$
+
+\vfill
+
+\vfill
+
+\vfill
+
+
+In R, we use `%*%` for matrix multiplication.
+
+```{r}
+X <- matrix(c(1,2, 1 ,-1), nrow = 2, ncol = 2, byrow = T); X
+#X <- matrix(c(1, 1, 2 ,-1), nrow = 2, ncol = 2); X
+beta_hat <- matrix(c(3,2),nrow =2, ncol = 1); beta_hat
+```
+
+\vfill
+
+```{r}
+y_hat <- X %*% beta_hat; y_hat
+```
+
+\vfill
+
+\newpage
+
+
+##### Motivating Dataset: Washington (DC) housing dataset
+
+Hopefully the connections to statistics are clear, using $X$ and $\beta$, but let's consider a motivating dataset.
+
+\vfill
+This dataset contains housing information from Washington, D.C. It was used for a STAT532 exam, so apologize in advance for any scar tissue.
+
+```{r}
+DC <- read_csv('https://math.montana.edu/ahoegh/teaching/stat532/data/DC.csv')
+```
+
+
+```{r}
+DC %>% group_by(WARD) %>% 
+  summarize(`Average Price (millions of dollars)` = mean(PRICE)/1000000, .groups = 'drop') %>% 
+  kable(digits = 3)
+
+DC %>% group_by(BEDRM) %>% 
+  summarize(`Average Price (millions of dollars)` = mean(PRICE)/1000000, .groups = 'drop') %>% 
+  kable(digits = 3)
+```
+
+\vfill
+
+\newpage
+
+```{r, fig.cap = 'Washington DC Housing prices. Note the exploratory figure removes (~40) properties costing more than 5 million dollars or larger than 10,000 square feet', fig.width=8, fig.height=8, echo = F, warning = F}
+DC %>% mutate(price_thousands = PRICE/ 1000000,
+              BEDRM = factor(BEDRM),
+              sqft = LANDAREA / 1000,
+              type = ordered(CNDTN, levels = c('Poor','Fair','Average','Good','Very Good', "Excellent"))) %>%
+  ggplot(aes(y =price_thousands, x = sqft, color = BEDRM, shape = AC )) + 
+  geom_jitter(alpha = .3) + facet_grid(QUADRANT~type) +
+ # geom_smooth(method = 'lm', formula = 'y~x', se = F) +
+  theme_bw() + 
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(angle = 90)) +
+  xlab('House Living Area (thousand sq/ft)') + 
+  ylab('Sales Price (million dollars)') +
+  xlim(0, 10) + ylim(0, 5)
+```
+
+\newpage
+
+\vfill
+
+### Regression Model
+
+There are many factors in this dataset that can are useful to predict housing prices.
+
+\vfill
+
+\vfill
+
+\vfill
+
+
+\vfill
+
+
+\vfill
+
+
+\vfill
+
+\vfill
+
+\vfill
+
+
+
+\newpage
+
+###### Diagonal Matrices 
+The matrix we previously specified, is referred to as a diagonal matrix. 
+\vfill
+
+
+##### Correlation Matrices
+
+It turns out that $I$ is the special case of what is referred to as a correlation matrix.
+
+\vfill
+
+A correlation matrix is:
+
+
+\vfill
+
+
+\vfill
+
+
+\vfill
+
+
+\vfill
+
+Similarly $\Sigma$ is often referred to as a variance - covariance matrix (or just a covariance matrix). A covariance matrix:
+
+
+\vfill
+
+
+\vfill
+
+
+\vfill
+
+
+\vfill
+
+
+\newpage
+
+##### Multivariate Normal Distribution
+
+Formally, our matrix notation has used a multivariate normal distribution.
+
+\begin{equation}
+\underline{y} = X \underline{\beta} + \underline{\epsilon},
+\end{equation}
+
+where $\underline{\epsilon} \sim N(\underline{0}, \Sigma),$ which also implies $\underline{y} \sim N(X \underline{\beta}, \Sigma)$.
+
+\vfill
+
+###### Partitioned Matrices
+
+\vfill
+\vfill
+
+\newpage
+
+### Conditional Multivariate Normal
+
+Here is where the magic happens with correlated data. Let $\underline{y_1}|\underline{Y_2}=\underline{y_2}$ be a conditional distribution for $\underline{y_1}$ given that $\underline{y_2}$ is known. Then
+
+\vfill
+
+$$\underline{y_1}|\underline{y_2} \sim N \left( X_1\beta + \Sigma_{12} \Sigma_{22}^{-1}\left(\underline{y_2} - X_2\beta \right), \Sigma_{11} - \Sigma_{12} \Sigma_{22}^{-1} \Sigma_{21} \right)$$
+\vfill
+
+Now let's consider a few special cases (in the context of the DC housing dataset.)
+
+\vfill
+
+1. Let $\Sigma = \sigma^2 I$,
+\vfill
+
+\vfill
+
+2. Otherwise, let $\Sigma = \sigma^2 H$ and we'll assume $\Sigma_{12}$ has some non-zero elements.
+
+\vfill
+\vfill
+
+First a quick interlude about matrix inversion. The inverse of a symmetric matrix is defined such that $E \times E^{-1} = I$. We can calculate the inverse of a matrix for a $1 \times 1$ matrix, perhaps as $2 \times 2$, matrix and maybe even a $3 \times 3$ matrix. However, beyond that it is quite challenging and time consuming. Furthermore, it is also (relatively) time intensive for your computer.
+
+\vfill
+
+\newpage
+
+3. Let $n_1 = 1$ and $n_2 = 1$, then
+
+\vfil
+
+\vfill
+\vfill
+\vfill
+
+Now consider an illustration for a couple simple scenarios. Let $\mu_1 = \mu_2 = 0$ and $\sigma^2_1 = \sigma^2_2 = 1$. Now assume $y_2 = -2$ and we compare the conditional distribution for a few values of $\sigma_{12}$.
+\vfill
+
+```{r, echo = F}
+mu1 <- 0
+mu2 <- 0
+sigmasq1 <- sigmasq2 <- 1
+
+dat_seq <- seq(-4,4, by = .01)
+n_seq <- length(dat_seq)
+tibble(group = rep(c('y2 = -2; sigma12 = 0',
+                     'y2 = -2; sigma12 = .2',
+                     'y2 = -2; sigma12 = .8'), each = n_seq), 
+dens = c(dnorm(dat_seq, mu1 + 0*(1/sigmasq2)*(-2 - mu2),
+               sqrt(sigmasq1 - 0 * (1/sigmasq2)*0 )), 
+         dnorm(dat_seq, mu1 + .2*(1/sigmasq2)*(-2 - mu2),
+               sqrt(sigmasq1 - .2 * (1/sigmasq2)*2 )), 
+         dnorm(dat_seq, mu1 + .8*(1/sigmasq2)*(-2 - mu2),
+               sqrt(sigmasq1 - .8 * (1/sigmasq2)*.8 ))), 
+y = rep(dat_seq, 3)) %>% 
+  ggplot(aes(x=y, y = dens, group = group, color = group)) +
+  geom_line() + theme_bw()
+```
+
+
+\vfill
+
+One last note, the marginal distributions for any partition $\underline{y_1}$ are quite simple.
+
+$$\underline{y_1} \sim N \left( X_1\beta, \Sigma_{11} \right)$$
+or just
+
+$$y_1 \sim N \left( X_1\beta, \sigma^2_{1} \right)$$
+if $y_1$ is scalar.
