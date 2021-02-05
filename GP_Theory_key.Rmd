@@ -1,0 +1,231 @@
+---
+title: "GP Theory"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(mnormt)
+library(plgp)
+library(reshape2)
+set.seed(02052021)
+```
+
+
+
+#### Recap of Conditional Multivariate Normal Distribution
+
+Recall the following property of a multivariate normal distribution.
+\vfill
+
+$$\underline{y_1}|\underline{y_2} \sim N \left( X_1\beta + \Sigma_{12} \Sigma_{22}^{-1}\left(\underline{y_2} - X_2\beta \right), \Sigma_{11} - \Sigma_{12} \Sigma_{22}^{-1} \Sigma_{21} \right)$$
+\vfill
+
+#### GP Overview
+
+Now let's extend this idea to a Gaussian Process (GP). There are two fundamental ideas to a GP.
+
+\vfill
+
+*1. Any finite set of realizations (say $\underline{y_2}$) has a multivariate normal distribution.*
+
+\vfill
+
+*2. Conditional on a set of realizations, all other locations (say $\underline{y_1}$) have a conditional normal distribution characterized by the mean, and most importantly the covariance function. Note the dimension of $\underline{y_1}$ can actually be infinite, such as defined on the real line.*
+
+\vfill
+
+*The big question is how to we estimate $\Sigma_{12}$?*
+
+\vfill
+
+*Generally, $\Sigma_{12}$, or more specifically the individual elements of $\Sigma_{12}$, such as $\sigma{i,j}$ will be estimated using some idea of distance.*
+
+\vfill
+
+*Fundamental idea of spatial statistics is that things close together tend to be similar.*
+
+\newpage
+
+#### Correlation function
+
+Initially, let's consider correlation as a function of distance, in one dimension or on a line.
+
+\vfill
+
+*As a starting point, consider a variant of what is known as the exponential covariance function. First define $d$ as the Euclidean distance between $x_1$ and $x_2$, such that $d = \sqrt{(x_i - x_j)^2}$* 
+
+$$\rho_{i,j} = \exp \left(- d \right)$$
+
+\vfill
+
+Lets view the exponential correlation as a function of distance between the two points.
+
+```{r, echo = F}
+dist <- seq(0, 5, by = .1)
+
+tibble(rho = exp(-dist), dist = dist) %>%
+  ggplot(aes(y = rho, x = dist)) + geom_line() +
+  theme_bw() + ylab(expression(rho))
+
+```
+
+\vfill
+
+Using a correlation function can reduce the number of unknown parameters in a covariance matrix. In an unrestricted case, $\Sigma$ has $n \choose 2$ + $n$ unknown parameters. However, using a correlation function can reduce the number of unknown parameters substantially, generally less than 4.
+
+\newpage
+
+#### Realizations of a Gaussian Process
+
+Recall that a process implies an infinite dimensional object. So we can generate a line rather than a discrete set of points. (While in practice the line will in fact be generated with a discrete set of points and then connected.)
+
+\vfill
+
+For this scenario we will assume a zero-mean GP, with covariance equal to the correlation funciton using $\rho_{i,j} = \exp \left(- d \right)$
+
+
+\vfill
+
+```{r}
+x <- seq(0, 10, by = .1)
+n <- length(x)
+d <- plgp::distance(x)
+eps <- sqrt(.Machine$double.eps) 
+H <- exp(-d) + diag(eps, n) 
+x[1:3]
+H[1:3,1:3]
+
+x[c(1,10, 50,100)]
+H[1,c(10, 50,100)]
+
+y <- rmnorm(1, rep(0,n),H)
+```
+
+```{r, echo = F, fig.width = 8, fig.height = 4}
+tibble(y = y, x = x) %>% ggplot(aes(y=y, x=x)) +
+  geom_line() + theme_bw() + ggtitle('Random realization of a GP') +
+  geom_point(size = .5)
+```
+
+\newpage
+
+```{r, echo = F, fig.width = 8, fig.height = 4}
+y2 <- rmnorm(1, rep(0,n),H)
+y3 <- rmnorm(1, rep(0,n),H)
+
+tibble(y = c(y,y2,y3), x = rep(x,3), group = rep(c('1','2','3'), each = n)) %>% ggplot(aes(y=y, x=x, group = group, color = group,linetype = group)) +
+  geom_line() + theme_bw() + ggtitle('Multiple realizations of a GP')
+```
+
+\vfill
+
+#### Connecting a GP to conditional normal
+
+Now consider a discrete set of points, say $\underline{y_2}$, how can we estimate the response for the remainder of the values in the interval [0,1].
+
+```{r, echo = F}
+x2 <- seq(0, 10, by = .75)
+n <- length(x2)
+d2 <- plgp::distance(x2)
+eps <- sqrt(.Machine$double.eps) 
+H22 <- exp(-d2) + diag(eps, n) 
+y2 <- rmnorm(1, rep(0,n),H22)
+data_fig <- tibble(y = y2, x = x2) %>% ggplot(aes(y=y, x=x)) +
+  #geom_line() + 
+  theme_bw() + ggtitle('Observed Data') +
+  geom_point(size = .5)
+data_fig
+```
+
+\newpage
+
+We can connect the dots (with uncertainty) using:
+
+$$\underline{y_1}|\underline{y_2} \sim N \left( X_1\beta + \Sigma_{12} \Sigma_{22}^{-1}\left(\underline{y_2} - X_2\beta \right), \Sigma_{11} - \Sigma_{12} \Sigma_{22}^{-1} \Sigma_{21} \right)$$
+\vfill
+
+```{r}
+x1 <- seq(0.01, 10, .1)
+n <- length(x1)
+d1 <- plgp::distance(x1)
+H11 <- exp(-d1) + diag(eps, n) 
+d12 <- plgp::distance(x1,x2)
+H12 <- exp(-d12) 
+mu_1given2 <- H12 %*% solve(H22) %*% matrix(y2, nrow = length(y2), ncol = 1)
+Sigma_1given2 <- H11 - H12 %*% solve(H22) %*% t(H12)
+```
+
+\vfill
+
+```{r, echo = F}
+mean_line <- tibble(y_mean = mu_1given2, x1 = x1)
+data_and_mean <- data_fig + 
+  geom_line(aes(y = y_mean, x = x1), inherit.aes = F, data = mean_line, color = 'gray') + 
+  geom_point() + ggtitle("Observed Data + Conditional Mean")
+data_and_mean
+```
+
+\newpage
+
+```{r}
+num_sims <- 100
+y1_sims <- rmnorm(num_sims, mu_1given2, Sigma_1given2)
+
+long_sims <- y1_sims %>% melt() %>% bind_cols(tibble(x = rep(x1, each = num_sims)))
+
+data_and_mean + 
+  geom_line(aes(y = value, x = x, group = Var1), inherit.aes = F,
+            data = long_sims, alpha = .1, color = 'gray') +
+  ggtitle('Observed Data + 100 GP Realizations')
+
+```
+
+\vfill
+
+You can also calculate and plot quantile-based intervals.
+
+```{r}
+quantiles <- apply(y1_sims,1, quantile, probs = c(.025,.975))[1:2,1:5]
+
+```
+
+\vfill
+
+\newpage
+
+### GP Regression
+
+Now rather than specifying a zero-mean GP, let the mean be $X \underline{\beta}.$
+
+\vfill
+
+```{r}
+x <- seq(0, 10, by = .25)
+beta <- 1
+n <- length(x)
+d <- plgp::distance(x)
+eps <- sqrt(.Machine$double.eps) 
+H <- exp(-d) + diag(eps, n) 
+y <- rmnorm(1, x * beta ,H)
+```
+
+```{r, echo = F, fig.width = 8, fig.height = 4}
+tibble(y = y, x = x) %>% ggplot(aes(y=y, x=x)) +
+ theme_bw() + ggtitle('Random realization of a GP Regression') +
+  geom_point(size = .5) + geom_smooth(formula = 'y~x', method = 'lm')
+```
+
+\vfill
+
+
+More details on fitting GP regression models with STAN: [https://mc-stan.org/docs/2_19/stan-users-guide/gaussian-processes-chapter.html](https://mc-stan.org/docs/2_19/stan-users-guide/gaussian-processes-chapter.html)
+
+\vfill
+
+### GP in 2D (or spatial Kriging)
+
+__Q:__ How does this differ in two (or more) dimensions? 
+*Actually there is very little difference (beyond the challenge of data visualization). The correlation function requires the Euclidean distance in 2-d rather than 1-d.*
