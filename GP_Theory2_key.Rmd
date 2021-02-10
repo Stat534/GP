@@ -1,0 +1,185 @@
+---
+title: "GP Theory Part 2"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(mnormt)
+library(plgp)
+library(reshape2)
+set.seed(02092021)
+```
+
+
+#### Correlation function: more details
+
+Recall the variant of the exponential covariance function that we have previously seen. Where $d$ as the Euclidean distance between $x_1$ and $x_2$, such that $d = \sqrt{(x_i - x_j)^2}$
+
+$$\rho_{i,j} = \exp \left(- d \right)$$
+
+\vfill
+
+Lets view the exponential correlation as a function of distance between the two points.
+
+```{r, echo = F}
+dist <- seq(0, 5, by = .1)
+
+tibble(rho = exp(-dist), dist = dist) %>%
+  ggplot(aes(y = rho, x = dist)) + geom_line() +
+  theme_bw() + ylab(expression(rho))
+
+```
+
+\vfill
+
+
+Now let's consider a more general framework for covariance where 
+
+$$\sigma_{i,j} = \sigma^2 \exp \left(- d_{ij} /\phi \right)$$
+\newpage
+
+Now we have introduced two new parameters into this function. What do you suppose that they do?
+
+- $\sigma^2$: controls the magnitude of the covariance.
+
+\vfill
+
+- $\phi$: controls the range of the spatial correlation
+
+\vfill
+
+Modify the following code (from last lecture) to gain an intuition about these parameters.
+\vfill
+
+```{r}
+phi <- 1
+sigmasq <- 1
+x <- seq(0, 10, by = .1)
+n <- length(x)
+d <- plgp::distance(x)
+eps <- sqrt(.Machine$double.eps) 
+H <- exp(-d/phi) + diag(eps, n) 
+H[1:3,1:3]
+y <- rmnorm(1, rep(0,n),sigmasq * H)
+tibble(y = y, x = x) %>% ggplot(aes(y=y, x=x)) +
+  geom_line() + theme_bw() + ggtitle('Random realization of a GP with phi = 1 and sigmasq = 1') +
+  geom_point(size = .5)
+```
+
+\newpage
+
+```{r}
+phi <- .1
+sigmasq <- 5
+H <- exp(-d/phi) + diag(eps, n) 
+H[1:3,1:3]
+y <- rmnorm(1, rep(0,n),sigmasq * H)
+tibble(y = y, x = x) %>% ggplot(aes(y=y, x=x)) +
+  geom_line() + theme_bw() + ggtitle('Random realization of a GP with phi = .1 and sigmasq = 5') +
+  geom_point(size = .5)
+```
+
+\newpage
+
+We will soon talk about a more broad set of correlation functions and another parameter that provides flexibility so that predictions do not have to directly through observed points.
+
+\vfill
+
+### Geostatistical Data
+At last, we will look at simulated 2-d "spatial" data.
+
+
+##### 1. Sampling Locations
+
+```{r}
+num.locations <- 50
+coords <- data.frame(x = runif(num.locations), y = runif(num.locations))
+coords %>% ggplot(aes(x=x,y=y)) + geom_point() + 
+  ggtitle('Hypothetical Sampling Locations') + xlim(0,1) + 
+  ylim(0,1) + theme_bw()
+```
+
+##### 2. Calculate Distances
+
+```{r, echo = T}
+dist.mat <- plgp::distance(coords)
+```
+
+##### 3. Define Covariance Function and Set Parameters
+Use exponential covariance with no nugget: 
+
+```{r}
+sigma.sq <- 1
+phi <- .1
+Sigma <- sigma.sq * exp(- dist.mat/phi) + diag(eps, num.locations) 
+```
+
+
+##### 4. Sample realization of the process
+- This requires a distributional assumption, we will use the Gaussian distribution
+
+```{r}
+Y <- rmnorm(n=1, mean = 0, varcov = Sigma)
+```
+
+- What about the rest of the locations on the map?
+
+##### 5. Vizualize Spatial Process
+
+```{r}
+coords %>% mutate(Y = Y) %>% ggplot(aes(x=x,y=y)) + geom_point(aes(color=Y), size=2) + 
+  ggtitle(label = 'Simulated Spatial Process', 
+          subtitle = 'Exponential Covariance: sigma.sq = 1, phi = .1') +  
+  xlim(0,1) + ylim(0,1) +   scale_colour_gradient2() + theme_dark()
+```
+
+\newpage
+
+Now we can look at more sampling locations
+
+```{r, echo = F}
+dim.grid <- 10
+grid.coords <- data.frame(x.grid = rep(seq(.05, .95, length.out=dim.grid), dim.grid),
+  y.grid = rep(seq(.05, .95, length.out = dim.grid), each = dim.grid))
+
+dist.grid <- distance(grid.coords)
+
+sigma.sq <- 1
+phi <- .1
+Sigma <- sigma.sq * exp(- dist.grid/phi) + diag(eps, dim.grid ^ 2) 
+
+Y <- rmnorm(n=1, mean = 0, varcov = Sigma)
+
+grid.coords %>% mutate(Y = Y) %>% ggplot(aes(x=x.grid,y=y.grid)) + geom_point(aes(color=Y), size=3) + ggtitle('Simulated Spatial Process', subtitle = 'Exponential Covariance: sigma.sq = 1, phi = .1') + xlim(0,1) + ylim(0,1) +   scale_colour_gradient2() + theme_dark()
+
+```
+
+
+```{r, echo = F}
+dim.grid <- 50
+grid.coords <- data.frame(x.grid = rep(seq(.05, .95, length.out=dim.grid), dim.grid),
+  y.grid = rep(seq(.05, .95, length.out = dim.grid), each = dim.grid))
+
+dist.grid <- distance(grid.coords)
+
+sigma.sq <- 1
+phi <- .1
+Sigma <- sigma.sq * exp(- dist.grid/phi) + diag(eps, dim.grid ^ 2) 
+
+Y <- rmnorm(n=1, mean = 0, varcov = Sigma)
+
+grid.coords %>% mutate(Y = Y) %>% ggplot(aes(x=x.grid,y=y.grid)) + geom_point(aes(color=Y), size=3) + ggtitle('Simulated Spatial Process', subtitle = 'Exponential Covariance: sigma.sq = 1, phi = .1') + xlim(0,1) + ylim(0,1) +   scale_colour_gradient2() + theme_dark()
+```
+
+
+
+
+How does the spatial process change with:
+
+- another draw with same parameters?
+- a different value of $\phi$
+- a different value of $\sigma^2$
+
